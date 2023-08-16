@@ -34,15 +34,17 @@ class PredictGraphic():
         for HBA, dict_second_compounds in self._compouds_dict.items():
             list_aux = []
             self.HBA_compounds.append(HBA)
-            for HBA, lnGamma in dict_second_compounds.items():
+            for HBD, lnGamma in dict_second_compounds.items():
                 list_aux.append(lnGamma)
-                if HBA not in self.HBD_compounds:
-                    self.HBD_compounds.append(HBA)
+                if HBD not in self.HBD_compounds:
+                    self.HBD_compounds.append(HBD)
                 if lnGamma < self._vmin:
                     self._vmin = lnGamma
                 if lnGamma > self._vmax:
                     self._vmax = lnGamma
             self._list_graphic_gen.append(list_aux)
+
+
     def graphic_gen(self):
         y_position = np.arange(len(self._list_graphic_gen) + 1)
         x_position = np.arange(len(self._list_graphic_gen[0]) + 1)

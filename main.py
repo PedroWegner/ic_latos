@@ -1,6 +1,7 @@
 from models.compound_list import *
 from models.list_graphics import *
 if __name__ == '__main__':
+
     HBA_compounds = ['PROLINE',
                      'BETAINE',
                      'DGLUCOSE',
@@ -14,7 +15,7 @@ if __name__ == '__main__':
                      'MALIC_ACID',
                      'L-MENTHOL',
                      'GLYCEROL',
-                     ]
+                    ]
     HBD_compounds = ['FORMIC_ACID',
                      'ACETIC_ACID',
                      'OXALIC_ACID',
@@ -49,11 +50,12 @@ if __name__ == '__main__':
                      ]
     x = EquimolarDictComp(selected_model='COSMO-SAC-HB2 (GAMESS)',
                           temperature=298.0,
-                          solute='CAFFEINE',
+                          solute='CURCUMINA',
                           HBA_list=HBA_compounds,
                           HBD_list=HBD_compounds)
-
-    print(x.compounds_dict)
+    y = PredictGraphic(x.equimolar_comp_dict)
+    #y.graphic_gen_2()
+    z = Worksheet(x.compounds_dict)
     """comp_dict = CompoudDictionary(selected_model='COSMO-SAC-HB2 (GAMESS)',
                                                 list_type=2,
                                                 comp_0="LIDOCAINE",

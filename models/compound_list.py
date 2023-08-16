@@ -21,7 +21,7 @@ class ReaderJCosmo():
         self.create_list()
 
     def create_list(self):
-        dir = (os.getcwd() + '\\jcosmo3\\profiles\\HF_TZVP.zip').replace('\\python_project', '')
+        dir = (os.getcwd() + '\\jcosmo3\\profiles\\HF_TZVP.zip').replace('\\ic_latos_project', '')
         with zipfile.ZipFile(dir, 'r') as file_zip:
             files_name = file_zip.namelist()
             for file_name in files_name:
@@ -100,7 +100,6 @@ class EquimolarDictComp(CompoundDictionary):
         self._molar_list = [[0.0, 0.5, 0.5]]
         self.equimolar_comp_dict = {}
         self.generate_comp_dict(molar_list=self._molar_list)
-
 
     def populate_compound_list(self,HBA_list, HBD_list):
         for HBA in HBA_list:
@@ -303,7 +302,7 @@ class Worksheet():
         self.save_worksheet()
 
     def compoud_dict(self, compound_dict):
-        self._compound_dict = compound_dict.compounds_dict
+        self._compound_dict = compound_dict
     def worksheet_skull(self):
         self._worksheet['A1'] = 'Molar fraction'
         self._worksheet['B1'] = 'Compound (fix)'
