@@ -58,15 +58,30 @@ class CompoundDictionary(ABC):
         return self._temperature
     @abstractmethod
     def populate_compound_list(self):
+        """
+        Funcao usada para popular a lista usada para o calculo
+        :return:
+        """
         pass
     @abstractmethod
     def indexation_dict(self, compound_1, compound_2):
+        """
+        funcao para criar os indexes no dicionario especifico das filhas
+        :param compound_1:
+        :param compound_2:
+        :return:
+        """
         pass
 
     @abstractmethod
     def indexation_lnGamma(self, compound_1, compound_2, lnGamma):
         pass
     def generate_comp_dict(self, molar_list):
+        """
+        funcao que gera um dicionario com lnGamma calculado
+        :param molar_list:
+        :return:
+        """
         comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, 3)
         comps[0] = self._solute
 
@@ -87,6 +102,7 @@ class CompoundDictionary(ABC):
                 self.compounds_dict[f"{self._solute}/{compound[0]}/{compound[1]}"][
                     f"{fraction[0]},{fraction[1]},{fraction[2]}"] = []
                 for i in range(0, 3, 1):
+
                     self.compounds_dict[f"{self._solute}/{compound[0]}/{compound[1]}"][
                         f"{fraction[0]},{fraction[1]},{fraction[2]}"].append(lnGamma[i])
                 self.indexation_lnGamma(compound_1=compound[0], compound_2=compound[1], lnGamma=lnGamma)
@@ -109,10 +125,118 @@ class EquimolarDictComp(CompoundDictionary):
     def indexation_dict(self,compound_1, compound_2):
         if not compound_1 in self.equimolar_comp_dict:
             self.equimolar_comp_dict[compound_1] = {}
+
     def indexation_lnGamma(self, compound_1, compound_2, lnGamma):
         self.equimolar_comp_dict[compound_1][compound_2] = lnGamma[0]
 
+class FixedCompDict(CompoundDictionary):
+    def __init__(self, selected_model, temperature, solute, compound_1, compound_list):
+        super().__init__(selected_model=selected_model, temperature=temperature, solute=solute)
+        self.populate_compound_list(compound_1=compound_1, compound_list=compound_list)
+        # Para alterar as fracoes molares eh so alterar em baixo
+        # eh soluto / solvente_1 / solvente_2
+        self._molar_list = [[0.0, 0.1, 0.9], [0.0, 0.2, 0.8], [0.0, 0.3, 0.7],
+                                    [0.0, 0.4, 0.6], [0.0, 0.5, 0.5],[0.0, 0.6, 0.4],
+                                    [0.0, 0.7, 0.3],[0.0, 0.8, 0.2], [0.0, 0.9, 0.1]]
+        self.fixed_com_dict = {}
+        self.generate_comp_dict(molar_list=self._molar_list)
 
+    def populate_compound_list(self, compound_1, compound_list):
+        for compound_2 in compound_list:
+            self._compounds_list.append([compound_1, compound_2])
+    def indexation_dict(self, compound_1,compound_2):
+        pass
+
+    def indexation_lnGamma(self, compound_1, compound_2, lnGamma):
+        pass
+
+class MixedCompDict(CompoundDictionary):
+    def __init__(self, selected_model, temperature, solute, compound_list):
+        super().__init__(selected_model=selected_model, temperature=temperature, solute=solute)
+        self.populate_compound_list(compound_list=compound_list)
+        # Para alterar as fracoes molares eh so alterar em baixo
+        # eh soluto / solvente_1 / solvente_2
+        self._molar_list = [[0.0, 0.1, 0.9], [0.0, 0.2, 0.8], [0.0, 0.3, 0.7],
+                                    [0.0, 0.4, 0.6], [0.0, 0.5, 0.5],[0.0, 0.6, 0.4],
+                                    [0.0, 0.7, 0.3],[0.0, 0.8, 0.2], [0.0, 0.9, 0.1]]
+        self.fixed_com_dict = {}
+        self.generate_comp_dict(molar_list=self._molar_list)
+
+    def populate_compound_list(self, compound_list):
+        self._compounds_list = list(combinations(compound_list, 2))
+    def indexation_dict(self, compound_1,compound_2):
+        pass
+    def indexation_lnGamma(self, compound_1, compound_2, lnGamma):
+        pass
+
+class Worksheet():
+    def __init__(self, compound_dict, xlsx_name):
+        self._font_st = Font(name='Arial',
+                   size=12,
+                   bold=False,
+                   italic=False,
+                   underline='none',
+                   color='1E211E',)
+        self._fill = PatternFill(fill_type='solid',
+                       fgColor='6AA7E0',)
+        self._workbook = openpyxl.Workbook()
+        self._worksheet = self._workbook.active
+        self._compound_dict = None #aqui sempre eh 3... ate segunda ordem.
+        self.compoud_dict(compound_dict=compound_dict)
+        self.worksheet_skull()
+        self.set_worksheet()
+        self.save_worksheet(xlsx_name=xlsx_name)
+
+    def compoud_dict(self, compound_dict):
+        self._compound_dict = compound_dict
+    def worksheet_skull(self):
+        self._worksheet['A1'] = 'Molar fraction'
+        self._worksheet['B1'] = 'Compound (fix)'
+        self._worksheet['C1'] = 'Compound 1'
+        self._worksheet['D1'] = 'Compound 2'
+        self._worksheet['A1'].font = self._font_st
+        self._worksheet['B1'].font = self._font_st
+        self._worksheet['C1'].font = self._font_st
+        self._worksheet['D1'].font = self._font_st
+
+    def set_worksheet(self):
+        alf = ['B', 'C', 'D']
+        k = 2
+        # these variables below are for comparing all data
+        ref_float_fraction = 9999.99
+        ref_fraction = None
+        for compounds_key, fractions_dict in self._compound_dict.items():
+            compounds = compounds_key.split('/')
+            for i, letter in enumerate(alf, start=0):
+                self._worksheet[f'{letter}{k}'] = compounds[i]
+                self._worksheet[f'{letter}{k}'].font = self._font_st
+            k += 1
+
+            # loop for finding the lower ln_gamma before populating the worksheet
+            for fractions, lngamma in fractions_dict.items():
+                if lngamma[0] < ref_float_fraction:
+                    ref_float_fraction = lngamma[0]
+                    ref_fraction = fractions
+
+            for fractions, lngamma in fractions_dict.items():
+                self._worksheet[f'A{k}'] = str(fractions)
+                self._worksheet[f'A{k}'].font = self._font_st
+                for i, letter in enumerate(alf):
+                    self._worksheet[f"{letter}{k}"] = lngamma[i]
+                    self._worksheet[f"{letter}{k}"].font = self._font_st
+                    if fractions == ref_fraction:
+                        self._worksheet[f'A{k}'].fill = self._fill
+                        self._worksheet[f"{letter}{k}"].fill = self._fill
+                k += 1
+            ref_float_fraction = 9999.99
+            ref_fraction = None
+
+    def save_worksheet(self, xlsx_name):
+        self._workbook.save(f"{xlsx_name}.xlsx")
+
+
+
+#daqui pra baixo to para apagar
 class CompDict_x():
     def __init__(self, selected_model, list_type, comp_0, temperature, n_comp_sol):
         self.selected_model = selected_model
@@ -138,8 +262,6 @@ class CompDict_x():
         if list_type == 2 and self.list_molar_fraction == [[0.0,0.5,0.5]]:
             self.equimolar_dict = {}
             self.teste_create()
-
-
 
     def list_type(self, list_type):
         self._list_type = list_type
@@ -283,67 +405,3 @@ class CompDict_x():
 
 
 
-class Worksheet():
-    def __init__(self, compound_dict):
-        self._font_st = Font(name='Arial',
-                   size=12,
-                   bold=False,
-                   italic=False,
-                   underline='none',
-                   color='1E211E',)
-        self._fill = PatternFill(fill_type='solid',
-                       fgColor='6AA7E0',)
-        self._workbook = openpyxl.Workbook()
-        self._worksheet = self._workbook.active
-        self._compound_dict = None #aqui sempre eh 3... ate segunda ordem.
-        self.compoud_dict(compound_dict=compound_dict)
-        self.worksheet_skull()
-        self.set_worksheet()
-        self.save_worksheet()
-
-    def compoud_dict(self, compound_dict):
-        self._compound_dict = compound_dict
-    def worksheet_skull(self):
-        self._worksheet['A1'] = 'Molar fraction'
-        self._worksheet['B1'] = 'Compound (fix)'
-        self._worksheet['C1'] = 'Compound 1'
-        self._worksheet['D1'] = 'Compound 2'
-        self._worksheet['A1'].font = self._font_st
-        self._worksheet['B1'].font = self._font_st
-        self._worksheet['C1'].font = self._font_st
-        self._worksheet['D1'].font = self._font_st
-
-    def set_worksheet(self):
-        alf = ['B', 'C', 'D']
-        k = 2
-        # these variables below are for comparing all data
-        ref_float_fraction = 9999.99
-        ref_fraction = None
-        for compounds_key, fractions_dict in self._compound_dict.items():
-            compounds = compounds_key.split('/')
-            for i, letter in enumerate(alf, start=0):
-                self._worksheet[f'{letter}{k}'] = compounds[i]
-                self._worksheet[f'{letter}{k}'].font = self._font_st
-            k += 1
-
-            # loop for finding the lower ln_gamma before populating the worksheet
-            for fractions, lngamma in fractions_dict.items():
-                if lngamma[0] < ref_float_fraction:
-                    ref_float_fraction = lngamma[0]
-                    ref_fraction = fractions
-
-            for fractions, lngamma in fractions_dict.items():
-                self._worksheet[f'A{k}'] = str(fractions)
-                self._worksheet[f'A{k}'].font = self._font_st
-                for i, letter in enumerate(alf):
-                    self._worksheet[f"{letter}{k}"] = lngamma[i]
-                    self._worksheet[f"{letter}{k}"].font = self._font_st
-                    if fractions == ref_fraction:
-                        self._worksheet[f'A{k}'].fill = self._fill
-                        self._worksheet[f"{letter}{k}"].fill = self._fill
-                k += 1
-            ref_float_fraction = 9999.99
-            ref_fraction = None
-
-    def save_worksheet(self):
-        self._workbook.save("lngamma_compounds.xlsx")

@@ -1,7 +1,7 @@
 from models.compound_list import *
 from models.list_graphics import *
 if __name__ == '__main__':
-
+    # listas exemplo
     HBA_compounds = ['PROLINE',
                      'BETAINE',
                      'DGLUCOSE',
@@ -48,18 +48,43 @@ if __name__ == '__main__':
                      'CYCLOHEXANOL',
                      'UREA',
                      ]
-    x = EquimolarDictComp(selected_model='COSMO-SAC-HB2 (GAMESS)',
+    """
+    Abaixo tem um exemplo de lista com uma lista de componentes e fazendo combinacao binaria deles
+    vai de 10/90 a 90/10 a fracao molar dos solventes
+    """
+    mixed_comp = MixedCompDict(
+        selected_model='COSMO-SAC-HB2 (GAMESS)',
+        temperature=298.0,
+        solute='CURCUMINA',
+        compound_list=HBD_compounds,
+    )
+    # worksheet eh para gerar o arquivo de excel
+    mix_ws = Worksheet(mixed_comp.compounds_dict, 'mixed_comp')
+
+    """
+    exemplo de um composto fixado, que eh o compound_1, e uma compound list com os que deseja
+    vai de 10/90 a 90/10 igualmente
+    """
+    fixed_comp = FixedCompDict(
+        selected_model='COSMO-SAC-HB2 (GAMESS)',
+        temperature=298.0,
+        solute='CURCUMINA',
+        compound_1='WATER',
+        compound_list=HBA_compounds
+    )
+    fixed_wx = Worksheet(fixed_comp.compounds_dict, 'fixed_comp')
+
+    """
+    esse eh o unico com aquele grafico de 'mapa de calor', por enquanto;
+    exemplo de um conjunto de componentes equimolar
+    so tem 50/50
+    """
+    equimolar_comp = EquimolarDictComp(selected_model='COSMO-SAC-HB2 (GAMESS)',
                           temperature=298.0,
                           solute='CURCUMINA',
                           HBA_list=HBA_compounds,
-                          HBD_list=HBD_compounds)
-    y = PredictGraphic(x.equimolar_comp_dict)
-    #y.graphic_gen_2()
-    z = Worksheet(x.compounds_dict)
-    """comp_dict = CompoudDictionary(selected_model='COSMO-SAC-HB2 (GAMESS)',
-                                                list_type=2,
-                                                comp_0="LIDOCAINE",
-                                                temperature=298.0,
-                                                n_comp_sol=3)
-
-    """
+                          HBD_list=HBD_compounds
+                                       )
+    equimolar_graph = PredictGraphic(equimolar_comp.equimolar_comp_dict)
+    equimolar_graph.graphic_gen_2()
+    equimolar_ws = Worksheet(equimolar_comp.compounds_dict, 'equimolar_comp')
