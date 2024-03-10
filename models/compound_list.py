@@ -1,3 +1,4 @@
+import math
 import os
 from random import sample
 from itertools import combinations
@@ -108,7 +109,6 @@ class CompoundDictionary(ABC):
                 self.indexation_lnGamma(compound_1=compound[0], compound_2=compound[1], lnGamma=lnGamma)
 
 
-
 class EquimolarDictComp(CompoundDictionary):
     def __init__(self, selected_model, temperature, solute, HBA_list, HBD_list):
         super().__init__(selected_model, temperature, solute)
@@ -129,15 +129,18 @@ class EquimolarDictComp(CompoundDictionary):
     def indexation_lnGamma(self, compound_1, compound_2, lnGamma):
         self.equimolar_comp_dict[compound_1][compound_2] = lnGamma[0]
 
+
 class FixedCompDict(CompoundDictionary):
     def __init__(self, selected_model, temperature, solute, compound_1, compound_list):
         super().__init__(selected_model=selected_model, temperature=temperature, solute=solute)
         self.populate_compound_list(compound_1=compound_1, compound_list=compound_list)
         # Para alterar as fracoes molares eh so alterar em baixo
         # eh soluto / solvente_1 / solvente_2
-        self._molar_list = [[0.0, 0.1, 0.9], [0.0, 0.2, 0.8], [0.0, 0.3, 0.7],
-                                    [0.0, 0.4, 0.6], [0.0, 0.5, 0.5],[0.0, 0.6, 0.4],
-                                    [0.0, 0.7, 0.3],[0.0, 0.8, 0.2], [0.0, 0.9, 0.1]]
+        self._molar_list = [[0.0, 1.0, 0.0], [0.0,0.962,0.038], [0.0,0.919,0.081],
+                            [0.0,0.868,0.132], [0.0,0.809,0.191],
+                            [0.0,0.739,0.261], [0.0,0.653,0.347],
+                            [0.0,0.548,0.452], [0.0,0.414,0.586],
+                            [0.0,0.239,0.761], [0.0, 0.0, 1.0]]
         self.fixed_com_dict = {}
         self.generate_comp_dict(molar_list=self._molar_list)
 
@@ -168,6 +171,85 @@ class MixedCompDict(CompoundDictionary):
         pass
     def indexation_lnGamma(self, compound_1, compound_2, lnGamma):
         pass
+
+class MonoComp():
+    def __init__(self, selected_model, temp_f, temp_o, N, solute, solvent):
+        self._selected_model = selected_model
+        _h = (temp_f - temp_o) / N
+        self.list_temperature = []
+        for T in range(N+1):
+            self.list_temperature.append(float(temp_o + T*_h))
+        self._solute = solute
+        self._solvent = solvent
+        self._molar_list = [0.0, 1.0]
+        self.compounds_dict = {}
+        self._reader_jcosmo = ReaderJCosmo()
+        self._gatewayJCosmo = GatewayJCosmo(selected_model=self._selected_model)
+        self._gateway = self._gatewayJCosmo.gateway
+        self._model = self._gatewayJCosmo.model
+        self.populate_compound_list()
+
+    def populate_compound_list(self):
+        comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, 2)
+        comps[0] = self._solute
+
+        x = self._gateway.new_array(self._gateway.jvm.double, 2)
+        x[0] = self._molar_list[0]
+        x[1] = self._molar_list[1]
+
+        for solvent in self._solvent:
+            if not solvent in self.compounds_dict:
+                self.compounds_dict[solvent] = {}
+            comps[1] = solvent
+            self._model.setCompounds(comps)
+            self._model.setComposition(x)
+            for temperature in self.list_temperature:
+                self._model.setTemperature(float(temperature))
+                lnGamma = self._model.activityCoefficientLn()
+                self.compounds_dict[solvent][temperature] = lnGamma[0] #MUDAR AQUI
+
+
+
+class Save_MonoComp: #VOU TER QUE MUDAR
+    def __init__(self, compound_dict, xlsx_name):
+        self._font_st = Font(name='Arial',
+                             size=12,
+                             bold=False,
+                             italic=False,
+                             underline='none',
+                             color='1E211E', )
+        self._fill = PatternFill(fill_type='solid',
+                                 fgColor='6AA7E0', )
+        self._workbook = openpyxl.Workbook()
+        self._worksheet = self._workbook.active
+        self._compound_dict = None  # aqui sempre eh 3... ate segunda ordem.
+        self.compoud_dict(compound_dict=compound_dict)
+        self._qtd_compounds = len(set(self._compound_dict.keys()))
+        self._alf = [chr(ord('B') + i) for i in range(self._qtd_compounds)]
+        self.worksheet_skull()
+        self.set_worksheet()
+        self.save_worksheet(xlsx_name=xlsx_name)
+
+
+    def compoud_dict(self, compound_dict):
+        self._compound_dict = compound_dict
+    def worksheet_skull(self):
+        self._worksheet['A1'] = 'Temperature'
+        self._worksheet['A1'].font = self._font_st
+        for i, (solvent, values) in enumerate(self._compound_dict.items()):
+            self._worksheet[f'{self._alf[i]}1'] = solvent
+            self._worksheet[f'{self._alf[i]}1'].font = self._font_st
+
+    def set_worksheet(self):
+        for i, (solvent, temperatures) in enumerate(self._compound_dict.items()):
+            k = 2
+            for temperature, lnGamma in temperatures.items():
+                self._worksheet[f'A{k}'] = temperature
+                self._worksheet[f'{self._alf[i]}{k}'] = lnGamma
+                k += 1
+
+    def save_worksheet(self, xlsx_name):
+        self._workbook.save(f"{xlsx_name}.xlsx")
 
 class Worksheet():
     def __init__(self, compound_dict, xlsx_name):
@@ -233,6 +315,157 @@ class Worksheet():
 
     def save_worksheet(self, xlsx_name):
         self._workbook.save(f"{xlsx_name}.xlsx")
+
+class Partition_K():
+    def __init__(self, selected_model, solutes, solvents, temperature):
+        self._selected_model = selected_model
+        self._solutes = solutes
+        self._solvents = solvents # recebe como [['Name', Total Concentration, Density, MW], ['1-OCTANOL', 8.37, 0.824, 130.2279]]
+        self._dict_solvents = {}
+        self._temperature = temperature
+        self._molar_list = [0.0, 1.0]
+        self.dict_lnGamma = {}
+        self.dict_K = {}
+
+        self._reader_jcosmo = ReaderJCosmo()
+        self._gatewayJCosmo = GatewayJCosmo(selected_model=self._selected_model)
+        self._gateway = self._gatewayJCosmo.gateway
+        self._model = self._gatewayJCosmo.model
+
+        self.dict_solv_constructor()
+        self.create_dict_lnGamma()
+        self.create_dict_K()
+
+    def dict_solv_constructor(self):
+        i = 1
+        for solvent in self._solvents:
+            self._dict_solvents[f'{i}'] = {}
+            self._dict_solvents[f'{i}']['Name'] = solvent[0]
+            self._dict_solvents[f'{i}']['Total concentration'] = solvent[1]
+            self._dict_solvents[f'{i}']['Density'] = solvent[2]
+            self._dict_solvents[f'{i}']['MW'] = solvent[3]
+            i += 1
+
+    def create_dict_lnGamma(self):
+        comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, 2)
+        x = self._gateway.new_array(self._gateway.jvm.double, 2)
+
+        for key, value in self._dict_solvents.items():
+            comps[1] = value['Name']
+
+            for solute in self._solutes:
+                if not solute in self.dict_lnGamma:
+                    self.dict_lnGamma[solute] = {}
+                comps[0] = solute
+
+                x[0] = self._molar_list[0]
+                x[1] = self._molar_list[1]
+
+                self._model.setCompounds(comps)
+                self._model.setComposition(x)
+                self._model.setTemperature(self._temperature)
+                lnGamma = self._model.activityCoefficientLn()
+                self.dict_lnGamma[solute][value['Name']] = math.exp(lnGamma[0])
+
+    def create_dict_K(self):
+        solvent_1 = self._dict_solvents['1']['Name']
+        solvent_2 = self._dict_solvents['2']['Name']
+
+        C_C_1 = self._dict_solvents['2']['Total concentration'] / self._dict_solvents['1']['Total concentration']
+        C_C_2 = (self._dict_solvents['2']['Density'] / self._dict_solvents['2']['MW']) / (
+                    self._dict_solvents['1']['Density'] / self._dict_solvents['1']['MW'])
+
+        for solute, value in self.dict_lnGamma.items():
+            if not solute in self.dict_K:
+                self.dict_K[solute] = {}
+            self.dict_K[solute]['K_1'] = math.log10(C_C_1*(value[solvent_1] / value[solvent_2]))
+            self.dict_K[solute]['K_2'] = math.log10(C_C_2*(value[solvent_1] / value[solvent_2]))
+            self.dict_K[solute]['K_3'] = math.log10(value[solvent_1] / value[solvent_2])
+
+
+
+class Save_partition_K():
+    def __init__(self, dict_K, xlsx_name):
+        self._font_st = Font(name='Arial',
+                   size=12,
+                   bold=False,
+                   italic=False,
+                   underline='none',
+                   color='1E211E',)
+        self._fill = PatternFill(fill_type='solid',
+                       fgColor='6AA7E0',)
+        self._workbook = openpyxl.Workbook()
+        self._worksheet = self._workbook.active
+        self._dict_K = None #aqui sempre eh 3... ate segunda ordem.
+        self.dict_K(dict_K)
+        self.worksheet_skull()
+        self.set_worksheet()
+        self.save_worksheet(xlsx_name=xlsx_name)
+
+    def dict_K(self, dict_K):
+        self._dict_K = dict_K
+
+    def worksheet_skull(self):
+        self._worksheet['A1'] = 'Compound'
+        self._worksheet['B1'] = 'log K_1 (CC * gamma_1/gamma_2)'
+        self._worksheet['C1'] = 'log K_2 (CC_rough * gamma_1/gamma_2)'
+        self._worksheet['D1'] = 'log K_3 (gamma_2/gamma_1)'
+        self._worksheet['A1'].font = self._font_st
+        self._worksheet['B1'].font = self._font_st
+        self._worksheet['C1'].font = self._font_st
+        self._worksheet['D1'].font = self._font_st
+
+    def set_worksheet(self):
+        k = 2
+        for solute, value_K in self._dict_K.items():
+            self._worksheet[f'A{k}'] = solute
+            self._worksheet[f'B{k}'] = value_K['K_1']
+            self._worksheet[f'C{k}'] = value_K['K_2']
+            self._worksheet[f'D{k}'] = value_K['K_3']
+            k += 1
+
+    def save_worksheet(self, xlsx_name):
+        self._workbook.save(f"{xlsx_name}.xlsx")
+
+
+
+
+
+
+class SigmaProfile():
+    def __init__(self, selected_model, compound, temperature):
+        self._selected_model = selected_model
+        self._compound = compound
+        self._temperature = temperature
+        self._molar_list = [1.0]
+        self._reader_jcosmo = ReaderJCosmo()
+        self._gatewayJCosmo = GatewayJCosmo(selected_model=self._selected_model)
+        self._gateway = self._gatewayJCosmo.gateway
+        self._model = self._gatewayJCosmo.model
+        self.teste()
+
+    def teste(self):
+        comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, 1)
+        x = self._gateway.new_array(self._gateway.jvm.double, 1)
+        comps[0] = self._compound
+        x[0] = self._molar_list[0]
+
+        self._model.setCompounds(comps)
+        self._model.setComposition(x)
+        self._model.setTemperature(self._temperature)
+        sigma_HB = self._model.getSigmaHB()
+        print(sigma_HB)
+
+        beta = self._model.getBeta()
+        print(beta)
+
+        density = self._model.excessGibbs()
+        density2 = self._model.activityCoefficientLn()
+        print(density)
+        print(density2[0])
+        print(self._model.help())
+
+
 
 
 
