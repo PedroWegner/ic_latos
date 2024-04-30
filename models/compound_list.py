@@ -208,6 +208,117 @@ class MonoComp():
                 lnGamma = self._model.activityCoefficientLn()
                 self.compounds_dict[solvent][temperature] = lnGamma[0] #MUDAR AQUI
 
+class OilTest():
+    def __init__(self, selected_model, temperature, solute, oil_list, molar_list):
+        self._selected_model = selected_model
+        self._temperature = temperature
+        self._solute = solute
+        self._oil_list = oil_list
+        self._molar_list = molar_list
+        self._reader_jcosmo = ReaderJCosmo()
+        self._gatewayJCosmo = GatewayJCosmo(selected_model=self._selected_model)
+        self._gateway = self._gatewayJCosmo.gateway
+        self._model = self._gatewayJCosmo.model
+        self.test()
+
+    def test(self):
+        for oil in self._oil_list:
+            n_comps = len(oil) + 1
+            comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, n_comps)
+            x = self._gateway.new_array(self._gateway.jvm.double, n_comps)
+            molar_list = [0.0]
+            comps[0] = self._solute
+            x[0] = molar_list[0]
+            for i, (key, value) in enumerate(oil.items()):
+                comps[i+1] = key
+                x[i+1] = value
+            self._model.setCompounds(comps)
+            self._model.setComposition(x)
+            self._model.setTemperature(self._temperature)
+            lnGamma = self._model.activityCoefficientLn()
+            print(lnGamma[0])
+
+class Auto_solvent():
+    def __init__(self, selected_model, solvent_list, solute):
+        self._selected_model = selected_model
+        self._solute = solute
+        self._solvent_list = solvent_list
+        self._reader_jcosmo = ReaderJCosmo()
+        self._gatewayJCosmo = GatewayJCosmo(selected_model=self._selected_model)
+        self._gateway = self._gatewayJCosmo.gateway
+        self._model = self._gatewayJCosmo.model
+        self.solvent_dict = {}
+        self.populate_dict()
+
+
+    def populate_dict(self):
+        for solvent in self._solvent_list:
+            if not solvent in self.solvent_dict:
+                self.solvent_dict[solvent.name] = {}
+            n_comps = len(solvent.composition) + 1
+            comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, n_comps)
+            comps[0] = self._solute
+            molar_fraction = self._gateway.new_array(self._gateway.jvm.double, n_comps)
+            molar_fraction[0] = 0.0
+            for i, v in enumerate(solvent.composition):
+                comps[i+1] = v
+            for molar in solvent.molar_fraction:
+                molar_n = ''
+                for i, v in enumerate(molar):
+                    molar_fraction[i+1] = v
+                    molar_n += f"{v:.3f}/"
+                if not molar_n in self.solvent_dict[solvent.name]:
+                    self.solvent_dict[solvent.name][molar_n] = {}
+                for temperature in solvent.temperature:
+                    self._model.setCompounds(comps)
+                    self._model.setComposition(molar_fraction)
+                    self._model.setTemperature(temperature)
+                    lnGamma = self._model.activityCoefficientLn()
+                    self.solvent_dict[solvent.name][molar_n][temperature] = lnGamma[0]
+
+class Auto_save():
+    def __init__(self, solvent_dict, workbook_name):
+        self._font_st = Font(name='Arial',
+                             size=12,
+                             bold=False,
+                             italic=False,
+                             underline='none',
+                             color='1E211E', )
+        self._fill = PatternFill(fill_type='solid',
+                                 fgColor='6AA7E0', )
+        self._solvent_dict = solvent_dict
+        self._workbook_name = workbook_name
+        self._workbook = openpyxl.Workbook()
+        self.set_worksheet()
+        self.save()
+
+    def set_worksheet(self):
+        for solvent, molar_fractions in self._solvent_dict.items():
+            sheet = self._workbook.create_sheet(title=solvent)
+            n_molar_fraction = len(self._solvent_dict[solvent].items())
+            alf = [chr(ord('B') + i) for i in range(n_molar_fraction)]
+            sheet['A1'] = 'Temperature'
+            sheet['A1'].font = self._font_st
+            for i, (molar_fraction, temperatures) in enumerate(molar_fractions.items()):
+                sheet[f'{alf[i]}1'] = molar_fraction
+                for j, (temperature, ln_gamma) in enumerate(temperatures.items(), start=2):
+                    sheet[f'A{j}'] = temperature
+                    sheet[f"{alf[i]}{j}"] = ln_gamma
+
+    def save(self):
+        self._workbook.save(f"{self._workbook_name}.xlsx")
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class Save_MonoComp: #VOU TER QUE MUDAR
