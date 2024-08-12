@@ -1,7 +1,7 @@
 import os
 import openpyxl
 from openpyxl.styles import Font, PatternFill
-import  numpy as np
+import numpy as np
 
 
 def encontrar_indice(value, dict):

@@ -158,7 +158,6 @@ class SLE(_SLE_GAMMA):
         There are two ways to obtain solute's molar fractions, first one is considerating the gamma_inf, and the second
         one is using iterative calculation to resolv the SLE equation (more accurate)
         """
-
         # tolerance for the iter calculation
         tol = pow(10, -10)
         for data, d_values in self.dict_data.items():

@@ -129,12 +129,17 @@ if __name__ == '__main__':
     # USAR A SEPARACAO DO SITE: https://www.ddbst.com/published-parameters-unifac.html !!!!!!!!!!!!!!!!!!!
     # list_group = [(numero do grupo, quantidade), (numero do grupo, quantidade)]
     # o nome em name afeta apenas a planilha salva
-    """
-    acetona = Comp(name="1-butanol", x=1, list_group=[(1, 2), (2, 2), (3, 1), (14, 1)])
-    n_pentano = Comp(name="formic_acid", x=0, list_group=[(43, 1)])
-    unifac = UNIFAC(temp_f=400.0, temp_o=303.15, n=10, list_comp=[acetona, n_pentano])
-    print(unifac.TE)
-    """
+
+    # x_1 = 0
+    # x_2 = 0
+    # x_3 = 1 - x_1 - x_2
+    # T = (59.4+273.15)
+    # acetona = Comp(name="acetone", x=x_1, list_group=[(1, 1), (18, 1)])
+    # _2_butanone = Comp(name="2-butanone", x=x_2, list_group=[(1, 1), (2, 1), (18, 1)])
+    # ethyl_acetate = Comp(name="ethyl_acetate", x=x_3, list_group=[(1, 1), (2, 1), (21, 1)])
+    # unifac = UNIFAC(temp_f=T, temp_o=T, n=1, list_comp=[acetona, _2_butanone, ethyl_acetate])
+    # print(unifac.TE)
+
 
 
 
@@ -159,6 +164,15 @@ if __name__ == '__main__':
                              )
     """
 
+"""
 Gamma_INF(selected_model='COSMO-SAC-HB2 (GAMESS)',
     solute="ASTAXANTHIN",
     )
+"""
+
+SLE(selected_model='COSMO-SAC-HB2 (GAMESS)',
+    solute="P-COUMARIC_ACID",
+    d_H=34300,
+    Tm=492.4
+    )
+print("P-COUMARIC_ACID")
