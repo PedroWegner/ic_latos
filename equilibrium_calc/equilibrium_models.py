@@ -44,12 +44,10 @@ class _SLE_GAMMA(ABC):
         # The excel file must be written like CARBAMAZEPINE example in the folder "input"
         if SLE:
             wb = openpyxl.load_workbook(
-                (os.path.dirname(os.path.abspath(__file__)) + f'\\input\\SLE\\{self._solute}.xlsx').replace('\\models',
-                                                                                                        ''))
+                (os.path.dirname(os.path.abspath(__file__)) + f'\\input\\SLE\\{self._solute}.xlsx'))
         else:
             wb = openpyxl.load_workbook(
-                (os.path.dirname(os.path.abspath(__file__)) + f'\\input\\GAMMA_INF\\{self._solute}.xlsx').replace('\\models',
-                                                                                                            ''))
+                (os.path.dirname(os.path.abspath(__file__)) + f'\\input\\GAMMA_INF\\{self._solute}.xlsx'))
 
         sheet = wb.active
         data = 0
@@ -63,7 +61,7 @@ class _SLE_GAMMA(ABC):
                 self.dict_data[f'data_{data}']['Molar_ratio'] = list(
                     map(float, str(l[2]).replace(',', '.').split(';')))
                 if SLE:
-                    self.dict_data[f'data_{data}']['SLE_exp'] = round(l[3], 6)
+                    self.dict_data[f'data_{data}']['x_exp'] = round(l[3], 6)
 
     def calc_GAMMA_INF(self):
         """
@@ -105,11 +103,11 @@ class _SLE_GAMMA(ABC):
         ws['C1'] = 'Molar_ratio'
         if SLE:
             _alf_list = [chr(ord('A') + i) for i in range(8)]
-            ws['D1'] = 'SLE_exp'
-            ws['E1'] = 'ln_g_inf'
-            ws['F1'] = 'SLE_ln_g_inf'
-            ws['G1'] = 'SLE_ln_g_iter'
-            ws['H1'] = 'SLE_ln_g_iter'
+            ws['D1'] = 'x_exp'
+            ws['E1'] = 'ln|γ_∞|'
+            ws['F1'] = 'x_est_∞'
+            ws['G1'] = 'ln|γ|'
+            ws['H1'] = 'x_est'
         else:
             _alf_list = [chr(ord('A') + i) for i in range(4)]
             ws['D1'] = 'ln_g_inf'
@@ -123,20 +121,20 @@ class _SLE_GAMMA(ABC):
             ws[f'B{k}'] = ';'.join(d_values['Solvent'])
             ws[f'C{k}'] = ";".join(map(str, d_values['Molar_ratio']))
             if SLE:
-                ws[f'D{k}'] = d_values['SLE_exp']
+                ws[f'D{k}'] = d_values['x_exp']
                 ws[f'E{k}'] = d_values['ln_gamma_inf']
-                ws[f'F{k}'] = d_values['SLE_calc (ln_gamma_inf)']
-                ws[f'G{k}'] = d_values['ln_gamma_iter']
-                ws[f'H{k}'] = d_values['SLE_calc (ln_gamma_iter)']
+                ws[f'F{k}'] = d_values['x_est_inf']
+                ws[f'G{k}'] = d_values['ln_gamma_est']
+                ws[f'H{k}'] = d_values['x_est']
             else:
                 ws[f'D{k}'] = d_values['ln_gamma_inf']
             k += 1
 
         # save the file
         if SLE:
-            wb.save((os.path.dirname(os.path.abspath(__file__)) + f'\\output\\SLE\\{self._solute}.xlsx').replace('\\models', ''))
+            wb.save((os.path.dirname(os.path.abspath(__file__)) + f'\\output\\SLE\\{self._solute}.xlsx'))
         else:
-            wb.save((os.path.dirname(os.path.abspath(__file__)) + f'\\output\\GAMMA_INF\\{self._solute}.xlsx').replace('\\models', ''))
+            wb.save((os.path.dirname(os.path.abspath(__file__)) + f'\\output\\GAMMA_INF\\{self._solute}.xlsx'))
 
 
 class SLE(_SLE_GAMMA):
@@ -178,10 +176,10 @@ class SLE(_SLE_GAMMA):
             self._model.setTemperature(d_values['T'])
 
             # this method obtains solute's fraction ratio by calculating ln_gamma_inf
-            self.dict_data[data]['SLE_calc (ln_gamma_inf)'] = math.exp(sle_cte - self.dict_data[data]['ln_gamma_inf'])
+            self.dict_data[data]['x_est_inf'] = math.exp(sle_cte - self.dict_data[data]['ln_gamma_inf'])
 
             # this method obtains solute's molar fraction by iteraction calculating (more accurate)
-            x[0] = d_values['SLE_exp']  # initial guess for the molar fraction
+            x[0] = d_values['x_exp']  # initial guess for the molar fraction
             while abs(err) > tol:
                 for i, molar_ratio in enumerate(d_values['Molar_ratio']):
                     x[i + 1] = molar_ratio * (1 - x[0])
@@ -193,8 +191,8 @@ class SLE(_SLE_GAMMA):
                 err = x_calc - x[0]
                 x[0] = x[0] + 0.2*err
 
-            self.dict_data[data]['ln_gamma_iter'] = lnGamma[0]
-            self.dict_data[data]['SLE_calc (ln_gamma_iter)'] = math.exp(sle_cte - lnGamma[0])
+            self.dict_data[data]['ln_gamma_est'] = lnGamma[0]
+            self.dict_data[data]['x_est'] = math.exp(sle_cte - lnGamma[0])
 
 class Gamma_INF(_SLE_GAMMA):
     def __init__(self, selected_model, solute):
@@ -203,3 +201,103 @@ class Gamma_INF(_SLE_GAMMA):
         self.pop_data_dictionary(SLE=False)
         self.calc_GAMMA_INF()
         self.save_file(SLE=False)
+
+
+# THE CLASS BELOW IS USED TO CALCULATE LIQUID-LIQUID EXTRACTION
+class Partition_K():
+    def __init__(self, selected_model, solutes, solvents, temperature, xlsx_name):
+        self._selected_model = selected_model
+        self._solutes = solutes
+        self._solvents = solvents # recebe como [['Name', Total Concentration, Density, MW], ['1-OCTANOL', 8.37, 0.824, 130.2279]]
+        self._dict_solvents = {}
+        self._temperature = temperature
+        self._molar_list = [0.0, 1.0]
+        self.dict_lnGamma = {}
+        self.dict_K = {}
+        self._gatewayJCosmo = GatewayJCosmo(selected_model=self._selected_model)
+        self._gateway = self._gatewayJCosmo.gateway
+        self._model = self._gatewayJCosmo.model
+
+        self.dict_solv_constructor()
+        self.create_dict_lnGamma()
+        self.create_dict_K()
+
+        # parameters for saving in excel file
+        self._font_st = Font(name='Arial',
+                             size=12,
+                             bold=False,
+                             italic=False,
+                             underline='none',
+                             color='1E211E', )
+        self._fill = PatternFill(fill_type='solid',
+                                 fgColor='6AA7E0', )
+        self._xlsx_name = xlsx_name
+        self.save_file()
+
+    def dict_solv_constructor(self):
+        i = 1
+        for solvent in self._solvents:
+            self._dict_solvents[f'{i}'] = {}
+            self._dict_solvents[f'{i}']['Name'] = solvent[0]
+            self._dict_solvents[f'{i}']['Total concentration'] = solvent[1]
+            self._dict_solvents[f'{i}']['Density'] = solvent[2]
+            self._dict_solvents[f'{i}']['MW'] = solvent[3]
+            i += 1
+
+    def create_dict_lnGamma(self):
+        comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, 2)
+        x = self._gateway.new_array(self._gateway.jvm.double, 2)
+
+        for key, value in self._dict_solvents.items():
+            comps[1] = value['Name']
+
+            for solute in self._solutes:
+                if not solute in self.dict_lnGamma:
+                    self.dict_lnGamma[solute] = {}
+                comps[0] = solute
+
+                x[0] = self._molar_list[0]
+                x[1] = self._molar_list[1]
+
+                self._model.setCompounds(comps)
+                self._model.setComposition(x)
+                self._model.setTemperature(self._temperature)
+                lnGamma = self._model.activityCoefficientLn()
+                self.dict_lnGamma[solute][value['Name']] = math.exp(lnGamma[0])
+
+    def create_dict_K(self):
+        solvent_1 = self._dict_solvents['1']['Name']
+        solvent_2 = self._dict_solvents['2']['Name']
+
+        C_C_1 = self._dict_solvents['2']['Total concentration'] / self._dict_solvents['1']['Total concentration']
+        C_C_2 = (self._dict_solvents['2']['Density'] / self._dict_solvents['2']['MW']) / (
+                    self._dict_solvents['1']['Density'] / self._dict_solvents['1']['MW'])
+
+        for solute, value in self.dict_lnGamma.items():
+            if not solute in self.dict_K:
+                self.dict_K[solute] = {}
+            self.dict_K[solute]['K_1'] = math.log10(C_C_1*(value[solvent_1] / value[solvent_2]))
+            self.dict_K[solute]['K_2'] = math.log10(C_C_2*(value[solvent_1] / value[solvent_2]))
+            self.dict_K[solute]['K_3'] = math.log10(value[solvent_1] / value[solvent_2])
+
+    def save_file(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+
+        ws['A1'] = 'Compound'
+        ws['B1'] = 'log|K| = (Corg*γ∞water)/(Cwater*γ∞org)'
+        ws['C1'] = 'log|K| = CC_rough*(γ∞water/γ∞org)'
+        ws['D1'] = 'log|K| = (γ∞org/gγ∞water)'
+        ws['A1'].font = self._font_st
+        ws['B1'].font = self._font_st
+        ws['C1'].font = self._font_st
+        ws['D1'].font = self._font_st
+
+        k = 2
+        for solute, value_K in self.dict_K.items():
+            ws[f'A{k}'] = solute
+            ws[f'B{k}'] = value_K['K_1']
+            ws[f'C{k}'] = value_K['K_2']
+            ws[f'D{k}'] = value_K['K_3']
+            k += 1
+        wb.save((os.path.dirname(os.path.abspath(__file__)) + f'\\output\\EXTRACTION_LIQUID_LIQUID\\{self._xlsx_name}.xlsx'))
