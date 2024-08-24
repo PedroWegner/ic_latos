@@ -3,7 +3,7 @@ from openpyxl.styles import Font, PatternFill
 import math
 import os
 from py4j.java_gateway import JavaGateway
-from abc import ABC, abstractmethod
+from abc import ABC
 
 
 class GatewayJCosmo():
@@ -285,9 +285,9 @@ class Partition_K():
         ws = wb.active
 
         ws['A1'] = 'Compound'
-        ws['B1'] = 'log|K| = (Corg*γ∞water)/(Cwater*γ∞org)'
-        ws['C1'] = 'log|K| = CC_rough*(γ∞water/γ∞org)'
-        ws['D1'] = 'log|K| = (γ∞org/gγ∞water)'
+        ws['B1'] = 'log|K| = log|(Corg*γ∞water)/(Cwater*γ∞org)|'
+        ws['C1'] = 'log|K| = log|CC_rough*(γ∞water/γ∞org)|'
+        ws['D1'] = 'log|K| = log|(γ∞org/gγ∞water)|'
         ws['A1'].font = self._font_st
         ws['B1'].font = self._font_st
         ws['C1'].font = self._font_st
@@ -300,4 +300,4 @@ class Partition_K():
             ws[f'C{k}'] = value_K['K_2']
             ws[f'D{k}'] = value_K['K_3']
             k += 1
-        wb.save((os.path.dirname(os.path.abspath(__file__)) + f'\\output\\EXTRACTION_LIQUID_LIQUID\\{self._xlsx_name}.xlsx'))
+        wb.save((os.path.dirname(os.path.abspath(__file__)) + f'\\output\\PARTITION_K\\{self._xlsx_name}.xlsx'))
