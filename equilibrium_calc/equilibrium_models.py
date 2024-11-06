@@ -56,7 +56,7 @@ class _SLE_GAMMA(ABC):
                 data += 1
                 if not f'data_{data}' in self.dict_data:
                     self.dict_data[f'data_{data}'] = {}
-                self.dict_data[f'data_{data}']['T'] = l[0]
+                self.dict_data[f'data_{data}']['T'] = float(l[0])
                 self.dict_data[f'data_{data}']['Solvent'] = l[1].split(';')
                 self.dict_data[f'data_{data}']['Molar_ratio'] = list(
                     map(float, str(l[2]).replace(',', '.').split(';')))
@@ -76,7 +76,10 @@ class _SLE_GAMMA(ABC):
             comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, ncomps)
             x = self._gateway.new_array(self._gateway.jvm.double, ncomps)
 
-            comps[0] = self._solute
+            if ';' in self._solute:
+                comps[0] = self._solute.split(';')[0]
+            else:
+                comps[0] = self._solute
             for i, solvent in enumerate(d_values['Solvent']):
                 comps[i + 1] = solvent
 
@@ -99,15 +102,17 @@ class _SLE_GAMMA(ABC):
 
         # writing on excel file
         ws['A1'] = 'Temperature'
-        ws['B1'] = 'Solvent'
-        ws['C1'] = 'Molar_ratio'
+        ws['B1'] = 'Solute'
+        ws['C1'] = 'Solvent'
+        ws['D1'] = 'Molar_ratio'
         if SLE:
             _alf_list = [chr(ord('A') + i) for i in range(8)]
-            ws['D1'] = 'x_exp'
-            ws['E1'] = 'ln|γ_∞|'
-            ws['F1'] = 'x_est_∞'
-            ws['G1'] = 'ln|γ|'
-            ws['H1'] = 'x_est'
+            ws['E1'] = 'x_exp'
+            # ws['E1'] = 'ln|γ_∞|'
+            # ws['F1'] = 'x_est_∞'
+            ws['F1'] = 'ln|γ|'
+            ws['G1'] = 'x_est'
+            ws['H1'] = '(x_exp - x_est)^2'
         else:
             _alf_list = [chr(ord('A') + i) for i in range(4)]
             ws['D1'] = 'ln_g_inf'
@@ -118,14 +123,16 @@ class _SLE_GAMMA(ABC):
         k = 2
         for data, d_values in self.dict_data.items():
             ws[f'A{k}'] = d_values['T']
-            ws[f'B{k}'] = ';'.join(d_values['Solvent'])
-            ws[f'C{k}'] = ";".join(map(str, d_values['Molar_ratio']))
+            ws[f'B{k}'] = self._solute
+            ws[f'C{k}'] = ';'.join(d_values['Solvent'])
+            ws[f'D{k}'] = ";".join(map(str, d_values['Molar_ratio']))
             if SLE:
-                ws[f'D{k}'] = d_values['x_exp']
-                ws[f'E{k}'] = d_values['ln_gamma_inf']
-                ws[f'F{k}'] = d_values['x_est_inf']
-                ws[f'G{k}'] = d_values['ln_gamma_est']
-                ws[f'H{k}'] = d_values['x_est']
+                ws[f'E{k}'] = d_values['x_exp']
+                # ws[f'E{k}'] = d_values['ln_gamma_inf']
+                # ws[f'F{k}'] = d_values['x_est_inf']
+                ws[f'F{k}'] = d_values['ln_gamma_est']
+                ws[f'G{k}'] = d_values['x_est']
+                ws[f'H{k}'] = d_values['desvio']
             else:
                 ws[f'D{k}'] = d_values['ln_gamma_inf']
             k += 1
@@ -167,13 +174,16 @@ class SLE(_SLE_GAMMA):
             comps = self._gateway.new_array(self._gateway.jvm.java.lang.String, ncomps)
             x = self._gateway.new_array(self._gateway.jvm.double, ncomps)
 
-            comps[0] = self._solute
+            if ';' in self._solute:
+                comps[0] = self._solute.split(';')[0]
+            else:
+                comps[0] = self._solute
             for i, solvent in enumerate(d_values['Solvent']):
                 comps[i + 1] = solvent
 
             # set compounds and temperature
             self._model.setCompounds(comps)
-            self._model.setTemperature(d_values['T'])
+            self._model.setTemperature(float(d_values['T']))
 
             # this method obtains solute's fraction ratio by calculating ln_gamma_inf
             self.dict_data[data]['x_est_inf'] = math.exp(sle_cte - self.dict_data[data]['ln_gamma_inf'])
@@ -193,6 +203,7 @@ class SLE(_SLE_GAMMA):
 
             self.dict_data[data]['ln_gamma_est'] = lnGamma[0]
             self.dict_data[data]['x_est'] = math.exp(sle_cte - lnGamma[0])
+            self.dict_data[data]['desvio'] = (math.exp(sle_cte - lnGamma[0]) - d_values['x_exp'])**2
 
 class Gamma_INF(_SLE_GAMMA):
     def __init__(self, selected_model, solute):
@@ -202,6 +213,21 @@ class Gamma_INF(_SLE_GAMMA):
         self.calc_GAMMA_INF()
         self.save_file(SLE=False)
 
+class melting_data():
+    def __init__(self):
+        self._wb = openpyxl.load_workbook(
+            (os.path.dirname(os.path.abspath(__file__)) + f'\\datas\\melting_data.xlsx'))
+        self.melting_dict = {}
+        self.pop_dict()
+    def pop_dict(self):
+        st = self._wb.active
+        for l in filter(None,st.iter_rows(min_row=2, values_only=True)):
+            if not all(value is None for value in l):
+                if not f'{l[0]}' in self.melting_dict:
+                    self.melting_dict[f'{l[0]}'] = {}
+
+                self.melting_dict[f'{l[0]}']['d_Hm'] = l[1]
+                self.melting_dict[f'{l[0]}']['Tm'] = l[2]
 
 # THE CLASS BELOW IS USED TO CALCULATE LIQUID-LIQUID EXTRACTION
 class Partition_K():
